@@ -23,7 +23,8 @@ class DraftAdapter(Protocol):
         self,
         evidence: dict[str, dict[str, str]],
         campaign: CampaignConfig,
-    ) -> DraftBatch: ...
+    ) -> DraftBatch:
+        ...
 
 
 def _invalid_placeholder(variant: str, reason: str, model: str) -> dict[str, Any]:

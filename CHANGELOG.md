@@ -4,6 +4,13 @@ Todas as mudanças notáveis deste projeto são registradas aqui. O formato
 segue [Keep a Changelog](https://keepachangelog.com/) e o projeto adere
 ao [SemVer](https://semver.org/).
 
+## [1.2.1] — 2026-09-17
+
+### Corrigido
+- Workflow legado de lint volta a ficar verde. A dívida anterior à v1.2 fica
+  registrada por arquivo, enquanto o módulo novo permanece sem exceções.
+- Assinatura do adapter ajustada para atender ao flake8 sem alterar o contrato.
+
 ## [1.2.0] — 2026-09-17
 
 ### Adicionado
