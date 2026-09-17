@@ -298,10 +298,11 @@
     <!-- populado via JS -->
   </div>
   <!-- Tabs -->
-  <div class="flex-shrink-0 px-6 border-b border-line flex items-center">
+  <div class="flex-shrink-0 px-6 border-b border-line flex items-center overflow-x-auto whitespace-nowrap">
     <button class="tab-btn active" data-tab="geral">Visão Geral</button>
     <button class="tab-btn" data-tab="rapport">Rapport Humano</button>
     <button class="tab-btn" data-tab="dor">Ganchos de Dor</button>
+    <button class="tab-btn" data-tab="mensagens">Mensagens IA</button>
     <button class="tab-btn" data-tab="atividade">Atividade</button>
   </div>
   <!-- Conteudo scroll -->
@@ -452,6 +453,7 @@
           proximo_passo_tipo: ls.proximo_passo_tipo || null,
           proximo_passo_nota: ls.proximo_passo_nota || null,
           motivo_perda: ls.motivo_perda || null,
+          outreach_state: ls.outreach_state || {},
           novo_nesta_rodada: stillNovoFlag,
         })
         .eq('id', supabaseId);
@@ -541,6 +543,7 @@
       proximo_passo_tipo: current.proximo_passo_tipo || '',
       proximo_passo_nota: current.proximo_passo_nota || '',
       motivo_perda: current.motivo_perda || '',
+      outreach_state: current.outreach_state || {},
     };
   }
   function saveState() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -872,6 +875,7 @@
       <div class="tab-panel ${isActive('geral')}" data-panel="geral">${renderTabGeral(lead)}</div>
       <div class="tab-panel ${isActive('rapport')}" data-panel="rapport">${renderTabRapport(lead)}</div>
       <div class="tab-panel ${isActive('dor')}" data-panel="dor">${renderTabDor(lead)}</div>
+      <div class="tab-panel ${isActive('mensagens')}" data-panel="mensagens">${renderTabMensagens(lead)}</div>
       <div class="tab-panel ${isActive('atividade')}" data-panel="atividade">${renderTabAtividade(lead)}</div>
     `;
     initDossierInteractions(lead);
@@ -1119,6 +1123,51 @@
     `;
   }
 
+  function renderTabMensagens(l) {
+    const drafts = l.outreach_drafts || [];
+    const saved = state.leads[l.id].outreach_state || {};
+    if (drafts.length === 0) {
+      return `
+        <section class="p-4 bg-panel border border-line rounded-xl">
+          <h3 class="font-display text-[13px] mb-2">Nenhum rascunho gerado</h3>
+          <p class="text-ink-muted text-[12.5px] leading-relaxed">Copie <code class="font-mono text-ink">outreach_campaign.example.json</code>, personalize a campanha e execute <code class="font-mono text-ink">python generate_outreach.py</code>. Depois, reconstrua o HTML.</p>
+        </section>`;
+    }
+    const labels = { direta: 'Direta', gancho_real: 'Gancho real', diagnostica: 'Diagnóstica' };
+    return `
+      <section class="mb-5 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl">
+        <h3 class="font-display text-[12px] text-blue-300 mb-1">Revisão humana obrigatória</h3>
+        <p class="text-[12px] text-ink-muted leading-relaxed">A IA apenas prepara rascunhos. Confira fatos, tom e contexto antes de aprovar. Nenhuma mensagem é enviada automaticamente.</p>
+      </section>
+      <div class="space-y-4">
+        ${drafts.map(draft => {
+          const item = saved[draft.variant] || {};
+          const text = item.text ?? draft.message ?? '';
+          const status = draft.valid ? (item.status || 'rascunho') : 'bloqueado';
+          const evidence = Object.values(draft.evidence || {});
+          return `
+          <article class="p-4 bg-panel border border-line rounded-xl" data-outreach-card="${esc(draft.variant)}">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h3 class="font-display text-[13px]">${esc(labels[draft.variant] || draft.variant)}</h3>
+                <p class="text-[10px] text-ink-faded font-mono mt-0.5">${esc(draft.model || '')} · ${esc(draft.prompt_version || '')}</p>
+              </div>
+              <span class="badge ${status === 'aprovado' ? 'st-ganhou' : status === 'bloqueado' ? 'st-perdeu' : status === 'editado' ? 'st-agendado' : 'st-abordado'}">${esc(status)}</span>
+            </div>
+            <textarea class="outreach-text w-full bg-panel-deep border border-line rounded-lg p-3 text-[13px] text-ink leading-relaxed resize-y font-body focus:outline-none focus:border-accent" rows="5" data-variant="${esc(draft.variant)}" ${draft.valid ? '' : 'disabled'}>${esc(text)}</textarea>
+            ${evidence.length ? `<div class="flex flex-wrap gap-1.5 mt-3">${evidence.map(e => `<span class="badge st-novo" title="${esc(e.value)}">${esc(e.label)}</span>`).join('')}</div>` : ''}
+            ${draft.violations && draft.violations.length ? `<p class="text-[11px] text-red-400 mt-3">Bloqueado: ${esc(draft.violations.join('; '))}</p>` : ''}
+            <p class="text-[11.5px] text-ink-dim mt-3 leading-relaxed">${esc(draft.rationale || '')}</p>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="action-pill outreach-approve" data-variant="${esc(draft.variant)}" ${draft.valid ? '' : 'disabled'}>Aprovar</button>
+              <button class="action-pill outreach-copy" data-variant="${esc(draft.variant)}" ${draft.valid ? '' : 'disabled'}>Copiar</button>
+              <button class="action-pill wa outreach-wa" data-variant="${esc(draft.variant)}" ${draft.valid && status === 'aprovado' && l.whatsapp_numero ? '' : 'disabled'}>Abrir no WhatsApp</button>
+            </div>
+          </article>`;
+        }).join('')}
+      </div>`;
+  }
+
   function renderTabAtividade(l) {
     const act = state.leads[l.id].activity || [];
     const notes = state.leads[l.id].notes || [];
@@ -1163,6 +1212,56 @@
           btn.textContent = 'copiado';
           setTimeout(() => { btn.textContent = prev; }, 1200);
         });
+      });
+    });
+    document.querySelectorAll('.outreach-text').forEach(input => {
+      input.addEventListener('input', () => {
+        const ls = state.leads[lead.id];
+        const draft = (lead.outreach_drafts || []).find(d => d.variant === input.dataset.variant);
+        ls.outreach_state = ls.outreach_state || {};
+        const previous = ls.outreach_state[input.dataset.variant] || {};
+        ls.outreach_state[input.dataset.variant] = {
+          ...previous,
+          text: input.value,
+          status: input.value === (draft && draft.message) ? 'rascunho' : 'editado',
+        };
+        saveState();
+      });
+      input.addEventListener('change', () => cloudUpsertLead(lead.id));
+    });
+    document.querySelectorAll('.outreach-approve').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const variant = btn.dataset.variant;
+        const draft = (lead.outreach_drafts || []).find(d => d.variant === variant);
+        if (!draft || !draft.valid) return;
+        const input = document.querySelector(`.outreach-text[data-variant="${variant}"]`);
+        const ls = state.leads[lead.id];
+        ls.outreach_state = ls.outreach_state || {};
+        ls.outreach_state[variant] = { text: input.value.trim(), status: 'aprovado', approved_at: Date.now() };
+        ls.activity.unshift({ t: Date.now(), type: 'outreach', msg: `Rascunho ${variant} aprovado para revisão final` });
+        saveState();
+        cloudUpsertLead(lead.id);
+        renderDossierBody(lead);
+        toast('Rascunho aprovado');
+      });
+    });
+    document.querySelectorAll('.outreach-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.querySelector(`.outreach-text[data-variant="${btn.dataset.variant}"]`);
+        navigator.clipboard.writeText(input.value).then(() => toast('Mensagem copiada'));
+      });
+    });
+    document.querySelectorAll('.outreach-wa').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const variant = btn.dataset.variant;
+        const item = (state.leads[lead.id].outreach_state || {})[variant];
+        const number = String(lead.whatsapp_numero || '').replace(/\D/g, '');
+        if (!item || item.status !== 'aprovado' || !number) return;
+        const url = `https://wa.me/${number}?text=${encodeURIComponent(item.text)}`;
+        window.open(url, '_blank', 'noopener');
+        state.leads[lead.id].activity.unshift({ t: Date.now(), type: 'wa', msg: `WhatsApp aberto com o rascunho ${variant}` });
+        saveState();
+        cloudUpsertLead(lead.id);
       });
     });
     const saveNext = document.getElementById('save-next-step');
@@ -1385,7 +1484,7 @@
       bumpPending(1);
       supabaseClient
         .from('leads')
-        .update({ status: 'novo', notes: [], activity: [], followup_num: 0, proximo_passo_em: null, proximo_passo_tipo: null, proximo_passo_nota: null, motivo_perda: null })
+        .update({ status: 'novo', notes: [], activity: [], followup_num: 0, proximo_passo_em: null, proximo_passo_tipo: null, proximo_passo_nota: null, motivo_perda: null, outreach_state: {} })
         .eq('agencia', CRM_CONFIG.agencia)
         .then(() => bumpPending(-1))
         .catch(e => { console.error('[cloud] reset falhou', e); bumpPending(-1); });
@@ -1612,6 +1711,7 @@
         state.leads[lid].proximo_passo_tipo = c.proximo_passo_tipo || '';
         state.leads[lid].proximo_passo_nota = c.proximo_passo_nota || '';
         state.leads[lid].motivo_perda = c.motivo_perda || '';
+        state.leads[lid].outreach_state = c.outreach_state || {};
       }
       const local = LEADS.leads.find(l => l.id === lid);
       if (local) local.novo_nesta_rodada = !!c.novo_nesta_rodada;

@@ -69,6 +69,33 @@ rodar a primeira execução.
 Cada fase é um script Python independente. Você pode rodar sozinhos para
 debugar, ou deixar o Claude Code orquestrar tudo via `PROMPT.md`.
 
+## Mensagens assistidas por IA, opcional
+
+A bancada de mensagens cria três rascunhos por lead: direta, gancho real
+e diagnóstica. Ela usa apenas fatos enumerados pelo pipeline, registra as
+evidências usadas e aplica validações determinísticas antes de mostrar o
+texto no CRM. A saída é sempre `draft_only`: não há envio automático nem
+condução autônoma de conversa.
+
+```bash
+cp outreach_campaign.example.json outreach_campaign.json
+# personalize a campanha e configure OPENAI_API_KEY no .env
+python generate_outreach.py --dry-run
+python generate_outreach.py --limit 10
+python build_html_v2.py
+```
+
+Por padrão, o adapter usa `gpt-5.6-luna`, adequado a uma etapa repetitiva
+e sensível a custo. Troque `OPENAI_MODEL` no `.env` para usar outro modelo
+compatível com [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+Consulte o [catálogo de modelos](https://developers.openai.com/api/docs/models)
+antes de fixar o modelo em produção. Contextos inalterados são preservados;
+use `--force` somente quando quiser regenerar tudo.
+
+No CRM, cada rascunho mostra as evidências, bloqueios e estado de revisão.
+O botão do WhatsApp só é liberado depois da aprovação humana. Abrir o link
+apenas preenche a mensagem no WhatsApp, sem confirmar ou executar o envio.
+
 ## Modo incremental (Supabase)
 
 Na primeira execução, todos os leads entram com `status = "novo"`.
@@ -95,7 +122,8 @@ Quando o pipeline termina, o `build_html_v2.py` gera um `index.html`
 
 - Kanban de oito colunas, incluindo Proposta enviada e Sem resposta
 - Drag-and-drop entre colunas com persistência automática
-- Dossiê slide-in com quatro abas (Geral, Rapport Humano, Ganchos, Atividade)
+- Dossiê slide-in com cinco abas (Geral, Rapport, Ganchos, Mensagens IA, Atividade)
+- Aba Mensagens IA com edição, aprovação, cópia e abertura manual do WhatsApp
 - Cadência sugerida de sete dias: abordagem, follow-up em D+1, D+3 e D+5
 - Próximo passo com badges de planejado, hoje e atrasado
 - Filtro "Follow-ups do dia" e registro de motivo de perda
@@ -109,10 +137,16 @@ Quando o pipeline termina, o `build_html_v2.py` gera um `index.html`
 A LP pública mostra o CRM em ação; os dados que você gera nunca saem
 da sua máquina e do seu Supabase.
 
+> **Segurança:** `index.html` contém os dados dos leads e, quando a bancada
+> opcional é usada, também contém os rascunhos. Não publique um CRM real em
+> URL pública. Use controle de acesso e nunca versione `leads_final.json`,
+> `outreach_campaign.json`, `outreach_drafts.json`, `.env` ou `index.html`.
+
 ## Stack
 
 - **Python 3.10+** para o pipeline (requests, python-dotenv, Playwright, BeautifulSoup4, opcional psycopg2-binary)
 - **Claude Code** como orquestrador, com cinco subagentes paralelos para enriquecimento
+- **OpenAI Responses API** opcional para rascunhos estruturados e auditáveis
 - **HTML estático autocontido** para o CRM, sem build step
 - **Tailwind via CDN**, **Sortable.js via CDN**, **supabase-js via CDN**
 - **Plus Jakarta Sans + Inter** via Google Fonts
@@ -155,7 +189,6 @@ scripts correspondentes.
 
 ## Roadmap
 
-- v1.2 — bancada opcional de mensagens assistidas por IA, com revisão humana
 - v1.3 — busca SERP via Playwright como complemento ao Google Places
 - v1.4 — modo "campanha" com cohorts de leads e métricas de conversão
 - v1.5 — exportação direta para CRMs externos (Pipedrive, HubSpot, Notion)

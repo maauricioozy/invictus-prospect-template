@@ -4,6 +4,24 @@ Todas as mudanças notáveis deste projeto são registradas aqui. O formato
 segue [Keep a Changelog](https://keepachangelog.com/) e o projeto adere
 ao [SemVer](https://semver.org/).
 
+## [1.2.0] — 2026-09-17
+
+### Adicionado
+- Bancada opcional de primeira abordagem assistida por IA.
+- Três variantes por lead: direta, gancho real e diagnóstica.
+- Saída estruturada pela Responses API e evidências rastreáveis por frase factual.
+- Guardrails determinísticos para links, múltiplas perguntas, garantias, emojis,
+  travessões, termos bloqueados, tamanho e evidências inexistentes.
+- Aba Mensagens IA no CRM, com edição, aprovação humana, cópia e abertura manual
+  do WhatsApp. Não existe envio automático.
+- Regeneração incremental por hash de contexto e modo `--dry-run` sem chamada de API.
+- Testes unitários e CI para Python e JavaScript do template.
+
+### Segurança
+- A chave OpenAI é usada apenas no script local e nunca é embutida no HTML.
+- Arquivos de campanha, leads, rascunhos e HTML gerado permanecem ignorados pelo Git.
+- README agora alerta explicitamente contra publicar dados reais sem controle de acesso.
+
 ## [1.1.0] — 2026-09-17
 
 Esta versão transforma o acompanhamento pós-abordagem em um fluxo

@@ -31,7 +31,25 @@ if sys.platform == "win32":
 BASE = Path(__file__).parent
 TEMPLATE = BASE / "template_crm.html"
 LEADS_JSON = BASE / "leads_final.json"
+OUTREACH_JSON = BASE / "outreach_drafts.json"
 OUT = BASE / "index.html"
+
+
+def merge_outreach(data: dict, outreach: dict | None) -> int:
+    """Anexa rascunhos aos leads sem alterar os arquivos de origem."""
+    if not outreach:
+        return 0
+    by_id = {item.get("lead_id"): item for item in outreach.get("leads", [])}
+    merged = 0
+    for lead in data.get("leads", []):
+        item = by_id.get(lead.get("id"))
+        if not item:
+            continue
+        lead["outreach_drafts"] = item.get("drafts", [])
+        lead["outreach_context_hash"] = item.get("context_hash", "")
+        lead["outreach_generated_at"] = item.get("generated_at", "")
+        merged += 1
+    return merged
 
 
 def carregar_env() -> dict:
@@ -67,6 +85,15 @@ def main() -> int:
         data = json.load(fh)
 
     env = carregar_env()
+    outreach_path = Path(env.get("OUTREACH_DRAFTS") or os.getenv("OUTREACH_DRAFTS") or OUTREACH_JSON)
+    if not outreach_path.is_absolute():
+        outreach_path = BASE / outreach_path
+    outreach = None
+    if outreach_path.exists():
+        with outreach_path.open("r", encoding="utf-8") as fh:
+            outreach = json.load(fh)
+    outreach_qtd = merge_outreach(data, outreach)
+
     supabase_url = env.get("SUPABASE_URL", "").strip()
     supabase_key = env.get("SUPABASE_ANON_KEY", "").strip()
     agencia = env.get("AGENCIA", "").strip()
@@ -90,6 +117,7 @@ def main() -> int:
     print(f"HTML gerado: {OUT}")
     print(f"Tamanho: {kb:.1f} KB")
     print(f"Leads embebidos: {leads_qtd}")
+    print(f"Leads com rascunhos: {outreach_qtd}")
     print(f"Cloud mode: {'ativo (Supabase)' if cloud_on else 'desativado (localStorage)'}")
     if cloud_on:
         print(f"  Agência: {agencia}")

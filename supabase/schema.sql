@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS leads (
   proximo_passo_tipo    text,
   proximo_passo_nota    text,
   motivo_perda          text,
+  outreach_state        jsonb DEFAULT '{}'::jsonb,
 
   -- Controle de execução incremental
   novo_nesta_rodada     boolean DEFAULT true,
@@ -100,6 +101,7 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS proximo_passo_em timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS proximo_passo_tipo text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS proximo_passo_nota text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS motivo_perda text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS outreach_state jsonb DEFAULT '{}'::jsonb;
 
 -- ---------------------------------------------------------------------
 -- Índices únicos para upsert determinístico

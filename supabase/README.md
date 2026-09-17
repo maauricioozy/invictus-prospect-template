@@ -57,7 +57,8 @@ ao final ele valida se as tabelas `leads` e `execucoes` estão acessíveis.
 
 - Tabela `leads` — um registro por prospect, com cerca de 30 colunas
   cobrindo identificação, contato, sócios via CNPJ, sinais Maps e Meta Ads,
-  rapport humano, gancho comercial, status, notas e atividade.
+  rapport humano, gancho comercial, status, notas, atividade, cadência de
+  follow-up, motivo de perda e estado local de revisão dos rascunhos.
 - Tabela `execucoes` — histórico de cada rodada do pipeline, com contagem
   de leads novos versus preservados.
 - Índices únicos por `(cnpj, agencia)` e `(whatsapp_numero, agencia)` para

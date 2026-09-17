@@ -90,7 +90,7 @@ Em seguida, no Claude Code, dispare cinco subagentes `general-purpose` em parale
 2. Dono: se o `socios_cnpj` já veio preenchido, usa o primeiro. Caso contrário, busca em bio do Instagram, respostas a reviews no Google Maps, página "sobre" do site, LinkedIn.
 3. Contexto humano: tempo de mercado calculado pela data de abertura, nicho de cliente principal inferido (MEI, contador, advogado etc), bairro de atuação, equipe visível, tom das respostas em reviews no Maps.
 4. Anúncios: `anuncia_google` (heurística via Google Search) e `anuncia_meta` (checagem via Meta Ad Library, marcado como "nao_verificado" se o scraping cair em proteção anti-bot — a validação objetiva acontece na Fase 07).
-5. Separação estrita entre `rapport_humano[]` (três a quatro fatos de conexão humana) e `gancho_dor[]` (duas a três observações comerciais duras). Sem misturar os dois. Sem escrever mensagens.
+5. Separação estrita entre `rapport_humano[]` (três a quatro fatos de conexão humana) e `gancho_dor[]` (duas a três observações comerciais duras). Sem misturar os dois. Nesta fase, ainda não escreva mensagens.
 
 Cada subagente salva o enriquecimento do seu lote em `lotes_v2/enriched_v2_X.json`.
 
@@ -179,7 +179,8 @@ Se bater esse alvo, a entrega está no padrão. Abaixo disso, vale reextrair com
 
 ## Observações finais
 
-- NUNCA pré-escreva mensagem de WhatsApp no CRM. O vendedor personaliza cada abordagem lendo o dossiê.
+- Mensagens só podem ser geradas pela fase opcional `generate_outreach.py`, em modo rascunho, com evidências explícitas, validação determinística e aprovação humana antes de abrir o WhatsApp.
+- NUNCA envie mensagem automaticamente. O operador revisa, edita e confirma cada abordagem.
 - Rapport humano é diferente de gancho comercial. Rapport é ponto de conexão (bairro, tempo de mercado, cultura da empresa, nicho atendido). Gancho é observação dura (site em HTTP sem SSL, review sem resposta há 18 meses, Instagram parado).
 - Se a Fase 07 falhar por bloqueio da Meta, repita uma vez com delays maiores. Se persistir, marque como "não verificado".
 - Se os seus leads saírem com DDD de outro estado, verifique se o filtro regional da Fase 02 está configurado para o estado certo.

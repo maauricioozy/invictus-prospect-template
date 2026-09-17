@@ -91,9 +91,19 @@ Pipeline de nove fases que transforma a entrada "segmento + cidade" em um CRM ka
  └──────────────────────────┬──────────────────────────┘
                             ▼
  ┌──────────────────────────┴──────────────────────────┐
+ │               FASE OPCIONAL: OUTREACH                │
+ │  generate_outreach.py                                 │
+ │  Converte fatos do lead em evidências enumeradas.     │
+ │  Gera três rascunhos estruturados, aplica guardrails   │
+ │  determinísticos e salva outreach_drafts.json.         │
+ │  Não abre canal, conduz conversa ou envia mensagem.    │
+ └──────────────────────────┬──────────────────────────┘
+                            ▼
+ ┌──────────────────────────┴──────────────────────────┐
  │                       FASE 09                         │
  │  build_html_v2.py                                     │
- │  Lê template_crm.html + leads_final.json.             │
+ │  Lê template_crm.html + leads_final.json e, quando     │
+ │  existir, outreach_drafts.json.                        │
  │  Substitui placeholder __LEADS_DATA__ pelo JSON.      │
  │  SAÍDA: index.html (autocontido)                      │
  │                                                        │
@@ -114,6 +124,7 @@ Pipeline de nove fases que transforma a entrada "segmento + cidade" em um CRM ka
 | 06 — validar WhatsApp | Evolution API self-hosted + SSH | VPS (R$ 20 a R$ 30/mês) | N/A |
 | 07 — Meta Ad Library | Playwright + Chromium headless | Zero | Delay de três a cinco segundos |
 | 08 — consolidate | Python puro | Zero | N/A |
+| Outreach opcional | OpenAI Responses API + Pydantic | Conforme modelo e volume | Conforme modelo |
 | 09 — build HTML | Python puro (substituição de template) | Zero | N/A |
 | Deploy | Vercel no plano gratuito | Zero | Ilimitado para estático |
 
@@ -145,7 +156,11 @@ FASE 07 produz:  JSON com {id, anuncia_meta: sim|nao, meta_ads_count}
 FASE 08 consome: TUDO acima
 FASE 08 produz:  um JSON com 50 leads totalmente consolidados
 
-FASE 09 consome: JSON da Fase 08 + template HTML
+OUTREACH consome: leads_final.json + outreach_campaign.json
+OUTREACH produz:  outreach_drafts.json com texto, evidências, validações,
+                  modelo, versão do prompt e hash do contexto
+
+FASE 09 consome: JSON da Fase 08 + template HTML + outreach opcional
 FASE 09 produz:  um index.html autocontido
 
 Deploy  consome: index.html
@@ -214,8 +229,10 @@ Chave: `ethos_crm_bh_2026_04_22` (renomeie conforme sua execução).
    → renderiza as quatro abas
    → aba padrão: Visão Geral
 
-4. Usuário clica no botão WhatsApp
-   → abre wa.me/NUMERO em nova aba (sem mensagem pré-preenchida)
+4. Usuário pode abrir o WhatsApp diretamente ou aprovar um rascunho opcional
+   → sem rascunho, abre wa.me/NUMERO em nova aba
+   → com rascunho aprovado, abre wa.me/NUMERO?text=MENSAGEM
+   → nenhum dos caminhos executa o envio
    → activity.unshift({type: "wa", msg: "WhatsApp aberto"})
    → saveState()
 

@@ -9,6 +9,8 @@
 
 # Dados privados de cada execução (nunca commitar leads de clientes)
 leads_final.json
+outreach_campaign.json
+outreach_drafts.json
 leads_*.csv
 prospects/
 lotes/
