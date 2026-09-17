@@ -78,6 +78,11 @@ CREATE TABLE IF NOT EXISTS leads (
   status                text DEFAULT 'novo',
   notes                 jsonb DEFAULT '[]'::jsonb,
   activity              jsonb DEFAULT '[]'::jsonb,
+  followup_num          integer DEFAULT 0,
+  proximo_passo_em      timestamptz,
+  proximo_passo_tipo    text,
+  proximo_passo_nota    text,
+  motivo_perda          text,
 
   -- Controle de execução incremental
   novo_nesta_rodada     boolean DEFAULT true,
@@ -88,6 +93,13 @@ CREATE TABLE IF NOT EXISTS leads (
   created_at            timestamptz DEFAULT now(),
   updated_at            timestamptz DEFAULT now()
 );
+
+-- Migração segura para projetos criados antes da v1.1.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS followup_num integer DEFAULT 0;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS proximo_passo_em timestamptz;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS proximo_passo_tipo text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS proximo_passo_nota text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS motivo_perda text;
 
 -- ---------------------------------------------------------------------
 -- Índices únicos para upsert determinístico

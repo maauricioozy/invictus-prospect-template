@@ -33,9 +33,10 @@
             novo: '#737373',
             abordado: '#3B82F6',
             respondeu: '#8B5CF6',
-            agendado: '#F59E0B',
-            ganhou: '#10B981',
-            perdeu: '#EF4444',
+	            agendado: '#F59E0B',
+	            ganhou: '#10B981',
+	            sem_resposta: '#F97316',
+	            perdeu: '#EF4444',
           },
         },
       },
@@ -96,7 +97,13 @@
   .st-agendado { color: #FBBF24; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); }
   .st-proposta { color: #22D3EE; background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.3); }
   .st-ganhou { color: #34D399; background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); }
+  .st-sem_resposta { color: #FB923C; background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.3); }
   .st-perdeu { color: #F87171; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.3); }
+
+  .due-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; border: 1px solid; }
+  .due-planned { color: #93C5FD; background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.28); }
+  .due-today { color: #FBBF24; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.32); }
+  .due-late { color: #F87171; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.32); }
 
   /* Priority pill: gradient sutil do cinza (baixo) pro azul (alto) */
   .prio-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; border-radius: 6px; border: 1px solid; }
@@ -117,8 +124,8 @@
   .lead-card.selected { border-color: rgba(59,130,246,0.5); background: rgba(59,130,246,0.04); }
 
   /* Estado "ja no pipeline de ganhou" atenua um pouco */
-  .lead-card[data-status="ganhou"], .lead-card[data-status="perdeu"] { opacity: 0.72; }
-  .lead-card[data-status="ganhou"]:hover, .lead-card[data-status="perdeu"]:hover { opacity: 1; }
+  .lead-card[data-status="ganhou"], .lead-card[data-status="sem_resposta"], .lead-card[data-status="perdeu"] { opacity: 0.72; }
+  .lead-card[data-status="ganhou"]:hover, .lead-card[data-status="sem_resposta"]:hover, .lead-card[data-status="perdeu"]:hover { opacity: 1; }
 
   /* Dossier */
   #dossier { transform: translateX(100%); transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
@@ -265,6 +272,7 @@
     <button class="chip" data-filter="cnpj">CNPJ oficial</button>
     <button class="chip" data-filter="meta">Anuncia Meta</button>
     <button class="chip" data-filter="prio">Prioridade 70+</button>
+    <button class="chip" data-filter="followupsHoje">Follow-ups do dia</button>
     <div class="h-5 w-px bg-line mx-2"></div>
     <select id="filter-cidade" class="chip" style="padding: 6px 11px;">
       <option value="">Todas as cidades</option>
@@ -371,7 +379,7 @@
   // ==========================================================================
   // CLOUD SYNC (Supabase) - opcional
   // Quando SUPABASE_URL e SUPABASE_ANON_KEY estao configurados, o CRM
-  // sincroniza estado (status/notes/activity) com a nuvem em tempo real.
+  // sincroniza estado de operação com a nuvem em tempo real.
   // Sem config valida, opera 100% local via localStorage (default).
   // ==========================================================================
   const CLOUD_MODE = (
@@ -439,6 +447,11 @@
           status: ls.status,
           notes: ls.notes || [],
           activity: ls.activity || [],
+          followup_num: ls.followup_num || 0,
+          proximo_passo_em: ls.proximo_passo_em || null,
+          proximo_passo_tipo: ls.proximo_passo_tipo || null,
+          proximo_passo_nota: ls.proximo_passo_nota || null,
+          motivo_perda: ls.motivo_perda || null,
           novo_nesta_rodada: stillNovoFlag,
         })
         .eq('id', supabaseId);
@@ -478,8 +491,10 @@
     { id: 'agendado',   label: 'Agendado',         color: '#F59E0B' },
     { id: 'proposta',   label: 'Proposta enviada', color: '#06B6D4' },
     { id: 'ganhou',     label: 'Ganhou',           color: '#10B981' },
+    { id: 'sem_resposta', label: 'Sem resposta',    color: '#F97316' },
     { id: 'perdeu',     label: 'Perdeu',           color: '#EF4444' },
   ];
+  const LOSS_REASONS = ['Sem interesse', 'Sem orçamento', 'Já tem fornecedor', 'Sem resposta', 'Contato futuro', 'Fora do perfil', 'Outro'];
 
   // Cores pseudo-randomicas pra avatar (via hash do nome)
   const AVATAR_PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#14B8A6', '#F43F5E', '#06B6D4', '#6366F1', '#84CC16'];
@@ -491,7 +506,7 @@
   let filters = {
     naoContactados: false,
     novosNestaRodada: false,
-    ig: false, wa: false, dono: false, cnpj: false, meta: false, prio: false, cidade: ''
+    ig: false, wa: false, dono: false, cnpj: false, meta: false, prio: false, followupsHoje: false, cidade: ''
   };
   let searchTerm = '';
   let selectedLeadId = null;
@@ -504,13 +519,29 @@
       if (!raw) return initialState();
       const parsed = JSON.parse(raw);
       if (!parsed.leads) return initialState();
+      LEADS.leads.forEach(l => {
+        parsed.leads[l.id] = normalizeLeadState(parsed.leads[l.id]);
+      });
       return parsed;
     } catch (e) { return initialState(); }
   }
   function initialState() {
     const leads = {};
-    LEADS.leads.forEach(l => { leads[l.id] = { status: 'novo', notes: [], activity: [] }; });
+    LEADS.leads.forEach(l => { leads[l.id] = normalizeLeadState({}); });
     return { leads, theme: 'dark' };
+  }
+  function normalizeLeadState(value) {
+    const current = value || {};
+    return {
+      status: current.status || 'novo',
+      notes: Array.isArray(current.notes) ? current.notes : [],
+      activity: Array.isArray(current.activity) ? current.activity : [],
+      followup_num: Number(current.followup_num || 0),
+      proximo_passo_em: current.proximo_passo_em || '',
+      proximo_passo_tipo: current.proximo_passo_tipo || '',
+      proximo_passo_nota: current.proximo_passo_nota || '',
+      motivo_perda: current.motivo_perda || '',
+    };
   }
   function saveState() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 
@@ -537,6 +568,63 @@
   function fmtCnpj(c) { return c || '—'; }
   function fmtPhone(p) { return p || '—'; }
   function fmtNow() { return new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+  function localDate(value) {
+    if (!value) return null;
+    const parts = String(value).slice(0, 10).split('-').map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  function dateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  function addDays(days) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + days);
+    return dateKey(d);
+  }
+  function dueInfo(value) {
+    const due = localDate(value);
+    if (!due) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const delta = Math.round((due - today) / 86400000);
+    if (delta < 0) return { kind: 'late', label: `${Math.abs(delta)}d atrasado`, delta };
+    if (delta === 0) return { kind: 'today', label: 'Hoje', delta };
+    if (delta === 1) return { kind: 'planned', label: 'Amanhã', delta };
+    return { kind: 'planned', label: due.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }), delta };
+  }
+  function statusLabel(id) {
+    return (STATUSES.find(s => s.id === id) || { label: id }).label;
+  }
+  function applyCadence(leadId, newStatus, oldStatus) {
+    const ls = state.leads[leadId];
+    if (newStatus === 'abordado' && oldStatus !== 'abordado' && !ls.proximo_passo_em) {
+      ls.followup_num = 0;
+      ls.proximo_passo_em = addDays(1);
+      ls.proximo_passo_tipo = 'Follow-up 1';
+    }
+    if (['novo', 'respondeu', 'ganhou', 'sem_resposta', 'perdeu'].includes(newStatus)) {
+      ls.proximo_passo_em = '';
+      ls.proximo_passo_tipo = '';
+      ls.proximo_passo_nota = '';
+    }
+    if (newStatus !== 'perdeu') ls.motivo_perda = '';
+  }
+  function setLeadStatus(leadId, newStatus) {
+    const ls = state.leads[leadId];
+    const oldStatus = ls.status;
+    if (newStatus === oldStatus) return false;
+    ls.status = newStatus;
+    applyCadence(leadId, newStatus, oldStatus);
+    ls.activity.unshift({ t: Date.now(), type: 'status', msg: `Movido de ${statusLabel(oldStatus)} para ${statusLabel(newStatus)}` });
+    saveState();
+    cloudUpsertLead(leadId);
+    return true;
+  }
 
   // ==========================================================================
   // FILTRO + SEARCH
@@ -559,6 +647,10 @@
     if (filters.cnpj && !lead.cnpj) return false;
     if (filters.meta && lead.anuncia_meta !== 'sim') return false;
     if (filters.prio && (lead.priority_score || 0) < 70) return false;
+    if (filters.followupsHoje) {
+      const due = dueInfo(state.leads[lead.id] && state.leads[lead.id].proximo_passo_em);
+      if (!due || due.delta > 0) return false;
+    }
     // Search global
     if (searchTerm) {
       const hay = simple([
@@ -615,6 +707,7 @@
     const prio = Math.round(lead.priority_score || 0);
     const bairroCurto = (lead.bairro || '').split(',')[0].split(';')[0].trim().slice(0, 40);
     const status = state.leads[lead.id].status;
+    const due = dueInfo(state.leads[lead.id].proximo_passo_em);
 
     const ehNovo = CLOUD_MODE && !!lead.novo_nesta_rodada;
     return `
@@ -637,6 +730,7 @@
         <span class="truncate">${esc(bairroCurto)} · ${esc(lead.cidade || '')}</span>
       </div>
       <div class="flex flex-wrap gap-1">
+        ${due ? `<span class="due-badge due-${due.kind}">${esc(state.leads[lead.id].proximo_passo_tipo || 'Próximo passo')} · ${esc(due.label)}</span>` : ''}
         ${wa ? `<span class="badge st-ganhou"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>WA</span>` : ''}
         ${ig ? `<span class="badge st-respondeu"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>IG</span>` : ''}
         ${meta ? `<span class="badge st-abordado"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M22 12C22 6.477 17.523 2 12 2S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/></svg>Meta</span>` : ''}
@@ -667,15 +761,7 @@
           const newStatus = evt.to.dataset.col;
           const oldStatus = state.leads[leadId].status;
           if (newStatus !== oldStatus) {
-            state.leads[leadId].status = newStatus;
-            state.leads[leadId].activity = state.leads[leadId].activity || [];
-            state.leads[leadId].activity.unshift({
-              t: Date.now(),
-              type: 'status',
-              msg: `Movido de ${STATUSES.find(s=>s.id===oldStatus).label} para ${STATUSES.find(s=>s.id===newStatus).label}`
-            });
-            saveState();
-            cloudUpsertLead(leadId);
+            setLeadStatus(leadId, newStatus);
             evt.item.dataset.status = newStatus;
             updateCounter();
             toast(`Lead movido para ${STATUSES.find(s=>s.id===newStatus).label}`);
@@ -759,14 +845,7 @@
       const newStatus = e.target.value;
       const oldStatus = state.leads[lead.id].status;
       if (newStatus !== oldStatus) {
-        state.leads[lead.id].status = newStatus;
-        state.leads[lead.id].activity.unshift({
-          t: Date.now(),
-          type: 'status',
-          msg: `Movido de ${STATUSES.find(s=>s.id===oldStatus).label} para ${STATUSES.find(s=>s.id===newStatus).label}`
-        });
-        saveState();
-        cloudUpsertLead(lead.id);
+        setLeadStatus(lead.id, newStatus);
         renderKanban();
         renderDossierBody(lead);
         toast(`Status atualizado para ${STATUSES.find(s=>s.id===newStatus).label}`);
@@ -801,6 +880,7 @@
   function renderTabGeral(l) {
     const wa = l.whatsapp_numero;
     return `
+    ${renderFollowupPanel(l)}
     <section class="mb-6">
       <h3 class="font-display text-[11px] uppercase tracking-[0.12em] text-ink-faded mb-3">Contato</h3>
       <div class="info-row">
@@ -917,6 +997,43 @@
     if (v === 'sim') return '<span class="badge st-ganhou">Sim</span>';
     if (v === 'nao' || v === 'nao_encontrado') return '<span class="badge st-perdeu">Nao</span>';
     return `<span class="text-ink-dim text-[12px]">${esc(v || 'não verificado')}</span>`;
+  }
+
+  function renderFollowupPanel(l) {
+    const ls = state.leads[l.id];
+    const due = dueInfo(ls.proximo_passo_em);
+    return `
+    <section class="mb-6 p-4 bg-panel border border-line rounded-xl">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <h3 class="font-display text-[11px] uppercase tracking-[0.12em] text-ink-faded">Cadência de contato</h3>
+          <p class="text-[12px] text-ink-muted mt-1">${ls.followup_num || 0} de 3 follow-ups concluídos</p>
+        </div>
+        ${due ? `<span class="due-badge due-${due.kind}">${esc(due.label)}</span>` : ''}
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <label class="text-[11px] text-ink-dim">Próximo passo
+          <input id="next-step-type" value="${esc(ls.proximo_passo_tipo)}" placeholder="Ex.: Follow-up 1" class="mt-1 w-full bg-panel-deep border border-line rounded-lg p-2 text-[12px] text-ink focus:outline-none focus:border-accent">
+        </label>
+        <label class="text-[11px] text-ink-dim">Data
+          <input id="next-step-date" type="date" value="${esc(ls.proximo_passo_em)}" class="mt-1 w-full bg-panel-deep border border-line rounded-lg p-2 text-[12px] text-ink focus:outline-none focus:border-accent">
+        </label>
+      </div>
+      <label class="text-[11px] text-ink-dim block mb-3">Nota do próximo passo
+        <input id="next-step-note" value="${esc(ls.proximo_passo_nota)}" placeholder="Ângulo ou contexto para retomar" class="mt-1 w-full bg-panel-deep border border-line rounded-lg p-2 text-[12px] text-ink focus:outline-none focus:border-accent">
+      </label>
+      <div class="flex flex-wrap gap-2">
+        <button id="save-next-step" class="action-pill">Salvar agenda</button>
+        ${ls.status === 'abordado' && ls.followup_num < 3 ? `<button id="register-followup" class="action-pill" style="background:#3B82F6;color:white;border-color:#3B82F6;">Registrar follow-up</button>` : ''}
+      </div>
+      ${ls.status === 'perdeu' ? `
+        <label class="text-[11px] text-ink-dim block mt-4">Motivo da perda
+          <select id="loss-reason" class="mt-1 w-full bg-panel-deep border border-line rounded-lg p-2 text-[12px] text-ink focus:outline-none focus:border-accent">
+            <option value="">Selecione</option>
+            ${LOSS_REASONS.map(r => `<option value="${esc(r)}" ${ls.motivo_perda === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+          </select>
+        </label>` : ''}
+    </section>`;
   }
 
   function renderTabRapport(l) {
@@ -1048,6 +1165,49 @@
         });
       });
     });
+    const saveNext = document.getElementById('save-next-step');
+    if (saveNext) saveNext.addEventListener('click', () => {
+      const ls = state.leads[lead.id];
+      ls.proximo_passo_tipo = document.getElementById('next-step-type').value.trim();
+      ls.proximo_passo_em = document.getElementById('next-step-date').value;
+      ls.proximo_passo_nota = document.getElementById('next-step-note').value.trim();
+      ls.activity.unshift({ t: Date.now(), type: 'agenda', msg: `Próximo passo atualizado: ${ls.proximo_passo_tipo || 'sem título'}${ls.proximo_passo_em ? ` em ${ls.proximo_passo_em}` : ''}` });
+      saveState();
+      cloudUpsertLead(lead.id);
+      renderKanban();
+      renderDossierBody(lead);
+      toast('Agenda atualizada');
+    });
+    const register = document.getElementById('register-followup');
+    if (register) register.addEventListener('click', () => {
+      const ls = state.leads[lead.id];
+      ls.followup_num = Math.min(3, (ls.followup_num || 0) + 1);
+      ls.activity.unshift({ t: Date.now(), type: 'followup', msg: `Follow-up ${ls.followup_num} registrado` });
+      if (ls.followup_num >= 3) {
+        ls.status = 'sem_resposta';
+        ls.proximo_passo_em = '';
+        ls.proximo_passo_tipo = '';
+        ls.proximo_passo_nota = '';
+      } else {
+        ls.proximo_passo_em = addDays(2);
+        ls.proximo_passo_tipo = `Follow-up ${ls.followup_num + 1}`;
+      }
+      saveState();
+      cloudUpsertLead(lead.id);
+      renderKanban();
+      renderDossierHead(lead);
+      renderDossierBody(lead);
+      toast('Follow-up registrado');
+    });
+    const lossReason = document.getElementById('loss-reason');
+    if (lossReason) lossReason.addEventListener('change', () => {
+      const ls = state.leads[lead.id];
+      ls.motivo_perda = lossReason.value;
+      if (ls.motivo_perda) ls.activity.unshift({ t: Date.now(), type: 'perda', msg: `Motivo da perda: ${ls.motivo_perda}` });
+      saveState();
+      cloudUpsertLead(lead.id);
+      toast('Motivo da perda salvo');
+    });
     // Submit nota
     const form = document.getElementById('note-form');
     if (form) {
@@ -1173,7 +1333,7 @@
   // EXPORT CSV
   // ==========================================================================
   function exportCsv() {
-    const headers = ['id','nome','dono','cnpj','cidade','bairro','telefone','whatsapp','wa_ativo','instagram','site','status','notas','score_prioridade'];
+    const headers = ['id','nome','dono','cnpj','cidade','bairro','telefone','whatsapp','wa_ativo','instagram','site','status','followups','proximo_passo','motivo_perda','notas','score_prioridade'];
     const rows = LEADS.leads.map(l => {
       const s = state.leads[l.id];
       const notes = (s.notes || []).map(n => n.text).join(' | ').replace(/"/g, '""');
@@ -1190,6 +1350,9 @@
         (l.instagram && l.instagram.url) || '',
         l.site || '',
         STATUSES.find(st => st.id === s.status)?.label || 'Novo',
+        s.followup_num || 0,
+        s.proximo_passo_em || '',
+        s.motivo_perda || '',
         notes,
         Math.round(l.priority_score || 0),
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
@@ -1222,7 +1385,7 @@
       bumpPending(1);
       supabaseClient
         .from('leads')
-        .update({ status: 'novo', notes: [], activity: [] })
+        .update({ status: 'novo', notes: [], activity: [], followup_num: 0, proximo_passo_em: null, proximo_passo_tipo: null, proximo_passo_nota: null, motivo_perda: null })
         .eq('agencia', CRM_CONFIG.agencia)
         .then(() => bumpPending(-1))
         .catch(e => { console.error('[cloud] reset falhou', e); bumpPending(-1); });
@@ -1306,7 +1469,7 @@
     });
     sel.addEventListener('change', (e) => { filters.cidade = e.target.value; renderKanban(); });
     document.getElementById('btn-clear-filters').addEventListener('click', () => {
-      filters = { ig: false, wa: false, dono: false, cnpj: false, meta: false, prio: false, cidade: '' };
+      filters = { naoContactados: false, novosNestaRodada: false, ig: false, wa: false, dono: false, cnpj: false, meta: false, prio: false, followupsHoje: false, cidade: '' };
       document.querySelectorAll('.chip[data-filter]').forEach(c => c.classList.remove('active'));
       sel.value = '';
       renderKanban();
@@ -1444,6 +1607,11 @@
         state.leads[lid].status = c.status || 'novo';
         state.leads[lid].notes = c.notes || [];
         state.leads[lid].activity = c.activity || [];
+        state.leads[lid].followup_num = Number(c.followup_num || 0);
+        state.leads[lid].proximo_passo_em = c.proximo_passo_em ? String(c.proximo_passo_em).slice(0, 10) : '';
+        state.leads[lid].proximo_passo_tipo = c.proximo_passo_tipo || '';
+        state.leads[lid].proximo_passo_nota = c.proximo_passo_nota || '';
+        state.leads[lid].motivo_perda = c.motivo_perda || '';
       }
       const local = LEADS.leads.find(l => l.id === lid);
       if (local) local.novo_nesta_rodada = !!c.novo_nesta_rodada;

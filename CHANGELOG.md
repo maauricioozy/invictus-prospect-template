@@ -4,6 +4,28 @@ Todas as mudanças notáveis deste projeto são registradas aqui. O formato
 segue [Keep a Changelog](https://keepachangelog.com/) e o projeto adere
 ao [SemVer](https://semver.org/).
 
+## [1.1.0] — 2026-09-17
+
+Esta versão transforma o acompanhamento pós-abordagem em um fluxo
+operacional dentro do próprio CRM. A implementação passou mais tempo em
+uso real antes de voltar ao template público, para que a cadência fosse
+publicada com comportamento previsível e migração sem perda do histórico.
+
+### Adicionado
+- Cadência sugerida de sete dias, com follow-ups em D+1, D+3 e D+5.
+- Agenda editável de próximo passo por lead.
+- Badges de follow-up planejado, para hoje e atrasado.
+- Filtro "Follow-ups do dia", incluindo pendências vencidas.
+- Status "Sem resposta" após o terceiro follow-up.
+- Motivo de perda estruturado no dossiê e na exportação CSV.
+- Novos campos equivalentes no Supabase, com migração idempotente.
+
+### Alterado
+- O estado antigo do localStorage é normalizado automaticamente, sem apagar
+  status, notas ou atividade existentes.
+- O reset do pipeline também limpa agenda, cadência e motivo de perda.
+- A exportação CSV agora inclui follow-ups, próximo passo e motivo de perda.
+
 ## [1.0.1] — 2026-04-24
 
 Patch após o primeiro smoke test end-to-end com PostgREST.

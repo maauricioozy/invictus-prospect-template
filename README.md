@@ -93,9 +93,12 @@ e sem servidor compartilhado.** Veja o passo a passo em
 Quando o pipeline termina, o `build_html_v2.py` gera um `index.html`
 único e autocontido com todos os seus leads embutidos. Recursos:
 
-- Kanban de seis colunas (Novo, Abordado, Respondeu, Agendado, Ganhou, Perdeu)
+- Kanban de oito colunas, incluindo Proposta enviada e Sem resposta
 - Drag-and-drop entre colunas com persistência automática
 - Dossiê slide-in com quatro abas (Geral, Rapport Humano, Ganchos, Atividade)
+- Cadência sugerida de sete dias: abordagem, follow-up em D+1, D+3 e D+5
+- Próximo passo com badges de planejado, hoje e atrasado
+- Filtro "Follow-ups do dia" e registro de motivo de perda
 - Command palette `Cmd+K` / `Ctrl+K` para busca instantânea
 - Filtros chips (com Instagram, WhatsApp validado, dono identificado, CNPJ, anuncia Meta, prioridade alta)
 - Filtro "Apenas não contactados" ativo por padrão em modo cloud
@@ -152,9 +155,10 @@ scripts correspondentes.
 
 ## Roadmap
 
-- v1.1 — busca SERP via Playwright como complemento ao Google Places
-- v1.2 — modo "campanha" com cohorts de leads e métricas de conversão
-- v1.3 — exportação direta para CRMs externos (Pipedrive, HubSpot, Notion)
+- v1.2 — bancada opcional de mensagens assistidas por IA, com revisão humana
+- v1.3 — busca SERP via Playwright como complemento ao Google Places
+- v1.4 — modo "campanha" com cohorts de leads e métricas de conversão
+- v1.5 — exportação direta para CRMs externos (Pipedrive, HubSpot, Notion)
 
 Sugestões? Abra uma issue.
 
